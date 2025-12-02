@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-export const middleware = auth((req) => {
+export const middleware = auth((req: any) => {
   const isAuthPage = req.nextUrl.pathname === "/";
   const isAuthApiPage = req.nextUrl.pathname.startsWith("/api/auth");
   const isProtectedPage = req.nextUrl.pathname.startsWith("/chat");
