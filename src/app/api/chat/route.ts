@@ -70,8 +70,7 @@ export async function POST(req: Request) {
                   `Current Price: $${stockData.price.toFixed(2)}\n` +
                   `Change: ${stockData.change > 0 ? '+' : ''}${stockData.change.toFixed(2)} (${stockData.changePercent})\n` +
                   `Last Updated: ${stockData.timestamp}`;
-      } catch (stockError) {
-        console.log("Stock failed, trying weather:", stockError.message);
+      } catch {
         try {
           const weatherData = await getWeather(userInput);
           response = `🌤️ Weather in ${weatherData.location}, ${weatherData.country}:\n\n` +
@@ -80,7 +79,7 @@ export async function POST(req: Request) {
                     `Humidity: ${weatherData.humidity}%\n` +
                     `Wind: ${weatherData.windSpeed} m/s\n` +
                     `Pressure: ${weatherData.pressure} hPa`;
-        } catch (weatherError) {
+        } catch {
           response = `Sorry, "${userInput}" is not a valid stock symbol or city name.`;
         }
       }
