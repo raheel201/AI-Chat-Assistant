@@ -13,10 +13,16 @@ export default function ChatInterface() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [messages, setMessages] = useState([
+  type Message = {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+  };
+
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
-      role: "assistant" as const,
+      role: "assistant",
       content: "Hi! I'm your AI assistant. I can help with:\n\n🌤️ Weather in any city\n🏎️ Next F1 race info\n📈 Stock prices (AAPL, GOOGL, etc.)\n\nWhat would you like to know?",
     },
   ]);
@@ -37,9 +43,9 @@ export default function ChatInterface() {
       return;
     }
 
-    const userMessage = {
+    const userMessage: Message = {
       id: Date.now().toString(),
-      role: "user" as const,
+      role: "user",
       content: input,
     };
     console.log("User message:", userMessage);

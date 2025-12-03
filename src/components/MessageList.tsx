@@ -1,6 +1,10 @@
 "use client";
 
-import type { Message } from "ai/react";
+type Message = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+};
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback } from "./ui/avatar";
