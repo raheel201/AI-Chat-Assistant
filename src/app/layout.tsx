@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import { SessionProvider } from "next-auth/react";
-import { ThemeProvider } from "@/components/theme-provider";
-import "@/styles/globals.css";
-import { Toaster } from "sonner";
+import { Providers } from "@/components/providers";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AI Chat Assistant",
@@ -18,17 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-            <Toaster position="bottom-right" />
-          </ThemeProvider>
-        </SessionProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

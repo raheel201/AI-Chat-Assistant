@@ -1,6 +1,6 @@
 "use client";
 
-import { useChat } from "ai/react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -13,23 +13,84 @@ export default function ChatInterface() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const { 
-    messages, 
-    input, 
-    handleInputChange, 
-    handleSubmit, 
-    isLoading,
-    error 
-  } = useChat({
-    api: "/api/chat",
-    initialMessages: [
-      {
-        id: "welcome",
-        role: "assistant",
-        content: "Hi! I'm your AI assistant. I can help with:\n\n🌤️ Weather in any city\n🏎️ Next F1 race info\n📈 Stock prices (AAPL, GOOGL, etc.)\n\nWhat would you like to know?",
-      },
-    ],
-  });
+  const [messages, setMessages] = useState([
+    {
+      id: "welcome",
+      role: "assistant" as const,
+      content: "Hi! I'm your AI assistant. I can help with:\n\n🌤️ Weather in any city\n🏎️ Next F1 race info\n📈 Stock prices (AAPL, GOOGL, etc.)\n\nWhat would you like to know?",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("Form submitted with input:", input);
+    
+    if (!input.trim() || isLoading) {
+      console.log("Skipping submit - empty input or loading");
+      return;
+    }
+
+    const userMessage = {
+      id: Date.now().toString(),
+      role: "user" as const,
+      content: input,
+    };
+    console.log("User message:", userMessage);
+
+    setMessages(prev => {
+      const newMessages = [...prev, userMessage];
+      console.log("Updated messages:", newMessages);
+      return newMessages;
+    });
+    setInput("");
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log("Sending request to /api/chat");
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+        }),
+      });
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
+      if (!response.ok) {
+        console.error("Response not ok:", response.status, response.statusText);
+        throw new Error("Failed to get response");
+      }
+
+      const responseText = await response.text();
+      console.log("Raw response text:", responseText);
+      
+      const assistantMessage = JSON.parse(responseText);
+      console.log("Parsed assistant message:", assistantMessage);
+      
+      setMessages(prev => {
+        const newMessages = [...prev, assistantMessage];
+        console.log("Final messages:", newMessages);
+        return newMessages;
+      });
+    } catch (err) {
+      console.error("Error in handleSubmit:", err);
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
+      console.log("Loading finished");
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {

@@ -1,10 +1,7 @@
-import { streamText, tool } from "ai";
-import { google } from "@ai-sdk/google";
 import { auth } from "@/lib/auth";
-import { z } from "zod";
 import { getWeather } from "@/app/api/tools/weather";
-import { getF1Matches } from "@/app/api/tools/f1-races";
 import { getStockPrice } from "@/app/api/tools/stock-price";
+import { getF1Matches } from "@/app/api/tools/f1-races";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -13,61 +10,111 @@ export async function POST(req: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    return new Response("Gemini API key not configured", { status: 500 });
-  }
-
   try {
     const { messages } = await req.json();
-
-    if (!Array.isArray(messages)) {
-      return new Response("Invalid messages format", { status: 400 });
+    const lastMessage = messages[messages.length - 1];
+    const userInput = lastMessage.content.toLowerCase();
+    
+    console.log("User input:", userInput);
+    
+    let response = "";
+    
+    // Check if user explicitly asks for stock
+    if (userInput.includes('stock')) {
+      console.log("Explicit stock request for:", userInput);
+      try {
+        const symbol = userInput.replace('stock', '').trim().toUpperCase();
+        const stockData = await getStockPrice(symbol);
+        response = `📈 Stock Price for ${stockData.symbol}:\n\n` +
+                  `Current Price: $${stockData.price.toFixed(2)}\n` +
+                  `Change: ${stockData.change > 0 ? '+' : ''}${stockData.change.toFixed(2)} (${stockData.changePercent})\n` +
+                  `Last Updated: ${stockData.timestamp}`;
+      } catch (error) {
+        console.error("Stock API error:", error);
+        response = `Sorry, I couldn't get stock data. Please try with a valid stock symbol like AAPL, GOOGL, MSFT.`;
+      }
     }
-
-    const result = await streamText({
-      model: google("gemini-1.5-flash"),
-      messages,
-      tools: {
-        getWeather: tool({
-          description: "Get current weather information for a specific location.",
-          parameters: z.object({
-            location: z.string().describe("City name or location"),
-          }),
-          execute: async ({ location }: { location: string }) => {
-            const data = await getWeather(location);
-            return JSON.stringify(data);
-          },
-        }),
-        getF1Matches: tool({
-          description: "Get information about the next Formula 1 race.",
-          parameters: z.object({}),
-          execute: async () => {
-            const data = await getF1Matches();
-            return JSON.stringify(data);
-          },
-        }),
-        getStockPrice: tool({
-          description: "Get current stock price for a specific company.",
-          parameters: z.object({
-            symbol: z.string().describe("Stock symbol (e.g., AAPL, GOOGL, MSFT)"),
-          }),
-          execute: async ({ symbol }: { symbol: string }) => {
-            const data = await getStockPrice(symbol);
-            return JSON.stringify(data);
-          },
-        }),
+    // Check if user is asking for F1 races
+    else if (userInput.includes('f1') || userInput.includes('race') || userInput.includes('formula')) {
+      console.log("Detected F1 request");
+      try {
+        const f1Data = await getF1Matches();
+        if ('message' in f1Data) {
+          response = `🏎️ F1 Info: ${f1Data.message}`;
+        } else {
+          response = `🏎️ Next Formula 1 Race:\n\n` +
+                    `Race: ${f1Data.raceName}\n` +
+                    `Circuit: ${f1Data.circuit}\n` +
+                    `Location: ${f1Data.location}\n` +
+                    `Date: ${f1Data.date}\n` +
+                    `Time: ${f1Data.time}`;
+        }
+      } catch (error) {
+        console.error("F1 API error:", error);
+        // Fallback mock data when API is down
+        response = `🏎️ Next Formula 1 Race (Mock Data):\n\n` +
+                  `Race: Abu Dhabi Grand Prix\n` +
+                  `Circuit: Yas Marina Circuit\n` +
+                  `Location: Abu Dhabi, UAE\n` +
+                  `Date: 2024-12-08\n` +
+                  `Time: 13:00 UTC\n\n` +
+                  `Note: Live F1 API is currently unavailable.`;
+      }
+    }
+    // For short inputs (1-5 chars), try stock first, then weather
+    else if (userInput.length <= 5 && /^[a-zA-Z]+$/.test(userInput)) {
+      console.log("Short input - trying stock first:", userInput);
+      try {
+        const stockData = await getStockPrice(userInput.toUpperCase());
+        response = `📈 Stock Price for ${stockData.symbol}:\n\n` +
+                  `Current Price: $${stockData.price.toFixed(2)}\n` +
+                  `Change: ${stockData.change > 0 ? '+' : ''}${stockData.change.toFixed(2)} (${stockData.changePercent})\n` +
+                  `Last Updated: ${stockData.timestamp}`;
+      } catch (stockError) {
+        console.log("Stock failed, trying weather:", stockError.message);
+        try {
+          const weatherData = await getWeather(userInput);
+          response = `🌤️ Weather in ${weatherData.location}, ${weatherData.country}:\n\n` +
+                    `Temperature: ${weatherData.temperature}°C (feels like ${weatherData.feelsLike}°C)\n` +
+                    `Condition: ${weatherData.description}\n` +
+                    `Humidity: ${weatherData.humidity}%\n` +
+                    `Wind: ${weatherData.windSpeed} m/s\n` +
+                    `Pressure: ${weatherData.pressure} hPa`;
+        } catch (weatherError) {
+          response = `Sorry, "${userInput}" is not a valid stock symbol or city name.`;
+        }
+      }
+    }
+    // For longer inputs, assume weather
+    else if (userInput.includes('weather') || userInput.includes('temperature') || userInput.length > 2) {
+      console.log("Detected weather request for:", userInput);
+      try {
+        const weatherData = await getWeather(userInput.replace('weather', '').trim() || userInput);
+        response = `🌤️ Weather in ${weatherData.location}, ${weatherData.country}:\n\n` +
+                  `Temperature: ${weatherData.temperature}°C (feels like ${weatherData.feelsLike}°C)\n` +
+                  `Condition: ${weatherData.description}\n` +
+                  `Humidity: ${weatherData.humidity}%\n` +
+                  `Wind: ${weatherData.windSpeed} m/s\n` +
+                  `Pressure: ${weatherData.pressure} hPa`;
+      } catch (error) {
+        response = `Sorry, I couldn't get weather data for "${userInput}". Please try with a valid city name.`;
+      }
+    }
+    else {
+      response = `Hello! I can help you with:\n\n🌤️ Weather - just type a city name\n🏎️ F1 races - type "f1" or "race"\n📈 Stock prices - type a stock symbol like AAPL\n\nWhat would you like to know?`;
+    }
+    
+    console.log("Response:", response);
+    
+    return new Response(JSON.stringify({
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: response
+    }), {
+      headers: {
+        'Content-Type': 'application/json',
       },
-      system: `You are a helpful AI assistant with access to real-time data tools. 
-
-You can help users by:
-1. Getting weather information for any location
-2. Providing information about the next Formula 1 race
-3. Checking current stock prices
-
-When a user asks about weather, F1 races, or stocks, use the appropriate tool to get real data and present it clearly.`,
     });
-
-    return result.toTextStreamResponse();
   } catch (error: any) {
     console.error("Chat API error:", error);
     return new Response(JSON.stringify({ error: "Failed to process chat request" }), { 
