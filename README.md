@@ -198,7 +198,7 @@ Contributions are welcome! Please ensure:
 
 ## License
 
-[Add your license here]
+NA
 
 ## Support
 
